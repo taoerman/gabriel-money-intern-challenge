@@ -1,0 +1,57 @@
+name: Deploy Lambda Function
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.13
+
+      - name: Install Dependencies
+        run: |
+          python -m venv .handler_venv
+          .handler_venv/bin/pip install -U pip
+          .handler_venv/bin/pip install -r requirements.txt
+
+      - name: Run Tests
+        run: |
+          if .handler_venv/bin/pytest test/; then
+            echo "Tests passed"
+          else
+            echo "Tests failed"
+            exit 1
+          fi
+
+      - name: Package Lambda Function
+        run: |
+          SITE_PACKAGES=".handler_venv/lib/python3.13/site-packages"
+          cd $SITE_PACKAGES && zip -r9 $GITHUB_WORKSPACE/handle_user_operation.zip .
+          cd $GITHUB_WORKSPACE && zip -r handle_user_operation.zip src/
+
+      - name: Validate ZIP File
+        run: |
+          file handle_user_operation.zip
+          unzip -l handle_user_operation.zip
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-1
+
+      - name: Deploy to AWS Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name arn:aws:lambda:us-west-1:516780363640:function:handleUserOperation \
+            --zip-file fileb://handle_user_operation.zip
