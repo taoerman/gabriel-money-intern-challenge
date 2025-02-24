@@ -1,0 +1,4 @@
+mongomock==4.3.0
+pymongo[srv]==3.12
+pytest==8.3.4
+requests==2.32.3
